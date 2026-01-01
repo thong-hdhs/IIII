@@ -1,6 +1,7 @@
 """UI screen rendering and components for Mines Arena client."""
 import tkinter as tk
 from tkinter import font as tkfont
+from tkinter import messagebox
 
 
 class NeonColors:
@@ -48,6 +49,83 @@ class UIRenderer:
                        highlightthickness=2, highlightcolor=color, highlightbackground=color)
         return btn
     
+    def _show_rules(self, mode):
+        """Show rules popup for selected mode."""
+        if mode == 'survival':
+            title = 'SURVIVAL - Chế độ Sinh tồn'
+            rules = '''Mục tiêu: Tránh mìn và hạ gục đối thủ
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🎮 Cách chơi:
+• Bàn chơi 8x8 với các quả mìn ngẫu nhiên
+• Mỗi lượt có 10 giây để chọn 1 ô
+• Click ô an toàn → game tiếp tục
+• Hết 10s không chọn → bạn thua
+• Click vào mìn → bạn thua ngay
+
+🏆 Kết thúc game:
+• Người còn lại không click mìn = THẮNG
+• Đối thủ bỏ cuộc = bạn THẮNG
+'''
+        else:
+            title = 'SCORING - Chế độ Tính điểm'
+            rules = '''Mục tiêu: Tích lũy điểm cao nhất
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🎮 Cách chơi:
+• Bàn chơi 8x8 với 2-4 quả mìn ngẫu nhiên
+• Mỗi lượt có 10 giây để chọn 1 ô
+• Click ô an toàn → +1 điểm
+• Click vào mìn → -1 điểm (game tiếp tục)
+• Hết 10s không chọn → mất lượt (0 điểm)
+
+🏆 Kết thúc game:
+• Khi tất cả mìn đã được click
+• Điểm cao hơn = THẮNG
+• Điểm bằng nhau = HÒA
+• Đối thủ bỏ cuộc = bạn THẮNG
+'''
+        
+        # Create centered popup
+        popup = tk.Toplevel(self.main_frame)
+        popup.title(title)
+        popup.geometry('450x350')
+        popup.config(bg=self.colors.BG_PRIMARY)
+        
+        # Center the popup
+        popup.transient(self.main_frame)
+        popup.grab_set()
+        
+        # Add text with styling
+        text_frame = tk.Frame(popup, bg=self.colors.BG_SECONDARY, relief='solid', bd=2)
+        text_frame.pack(fill='both', expand=True, padx=15, pady=15)
+        
+        text_label = tk.Label(text_frame, text=rules,
+                            bg=self.colors.BG_SECONDARY, fg=self.colors.WHITE_TEXT,
+                            font=('Courier', 10), justify='left', wraplength=400)
+        text_label.pack(fill='both', expand=True, padx=10, pady=10)
+        
+        # OK button
+        ok_btn = tk.Button(popup, text='OK',
+                          bg=self.colors.NEON_CYAN, fg=self.colors.BG_PRIMARY,
+                          font=('Arial', 11, 'bold'),
+                          command=popup.destroy,
+                          width=20)
+        ok_btn.pack(pady=10)
+        
+        # Center on parent window
+        popup.update_idletasks()
+        parent_x = self.main_frame.winfo_toplevel().winfo_x()
+        parent_y = self.main_frame.winfo_toplevel().winfo_y()
+        parent_w = self.main_frame.winfo_toplevel().winfo_width()
+        parent_h = self.main_frame.winfo_toplevel().winfo_height()
+        
+        popup_w = popup.winfo_width()
+        popup_h = popup.winfo_height()
+        
+        x = parent_x + (parent_w - popup_w) // 2
+        y = parent_y + (parent_h - popup_h) // 2
+        
+        popup.geometry(f'+{x}+{y}')
+    
     def show_menu_screen(self, on_survival, on_scoring, on_exit):
         """Render the main menu screen."""
         self.clear_frame()
@@ -65,39 +143,51 @@ class UIRenderer:
         tk.Label(title_frame, text='⬤ MINES ARENA ⬤',
                 bg=self.colors.BG_PRIMARY, fg=self.colors.NEON_CYAN, 
                 font=('Arial', 34, 'bold')).pack()
-        tk.Label(title_frame, text='Multiplayer Minesweeper',
-                bg=self.colors.BG_PRIMARY, fg=self.colors.NEON_PURPLE, 
-                font=('Arial', 12)).pack(pady=(6, 0))
-        
-        # Mode descriptions
-        desc_frame = tk.Frame(center, bg=self.colors.BG_PRIMARY)
-        desc_frame.pack(pady=(6, 8))
-        tk.Label(desc_frame, 
-                text='Survival: One mine ends the match — last player standing wins.',
-                bg=self.colors.BG_PRIMARY, fg=self.colors.GRAY_TEXT, 
-                font=('Arial', 10)).grid(row=0, column=0, padx=10)
-        tk.Label(desc_frame, 
-                text='Scoring: Each mine reduces your score; higher score wins.',
-                bg=self.colors.BG_PRIMARY, fg=self.colors.GRAY_TEXT, 
-                font=('Arial', 10)).grid(row=0, column=1, padx=10)
+
 
         # Mode buttons in cards
         btn_frame = tk.Frame(center, bg=self.colors.BG_PRIMARY)
-        btn_frame.pack(pady=(10, 12), anchor='center', fill='x')
+        btn_frame.pack(pady=(20, 12), anchor='center', fill='x')
 
+        # Survival card
         card1 = tk.Frame(btn_frame, bg=self.colors.BG_SECONDARY, bd=2, relief='solid')
         card1.pack(pady=8, fill='x')
-        btn_survival = self.create_neon_button(card1, '▶ SURVIVAL ◀',
+        
+        card1_content = tk.Frame(card1, bg=self.colors.BG_SECONDARY)
+        card1_content.pack(fill='x', padx=12, pady=10)
+        
+        btn_survival = self.create_neon_button(card1_content, '▶ SURVIVAL ◀',
                                               on_survival,
-                                              self.colors.NEON_GREEN, (34, 2, 14))
-        btn_survival.pack(padx=12, pady=10)
+                                              self.colors.NEON_GREEN, (28, 2, 14))
+        btn_survival.pack(side='left', fill='both', expand=True)
+        
+        info_btn1 = tk.Button(card1_content, text='ⓘ',
+                            bg=self.colors.NEON_GREEN, fg=self.colors.BG_PRIMARY,
+                            font=('Arial', 11, 'bold'),
+                            command=lambda: self._show_rules('survival'),
+                            relief='solid', bd=1, cursor='hand2',
+                            width=3, height=1)
+        info_btn1.pack(side='right', padx=(8, 0))
 
+        # Scoring card
         card2 = tk.Frame(btn_frame, bg=self.colors.BG_SECONDARY, bd=2, relief='solid')
         card2.pack(pady=8, fill='x')
-        btn_scoring = self.create_neon_button(card2, '▶ SCORING ◀',
+        
+        card2_content = tk.Frame(card2, bg=self.colors.BG_SECONDARY)
+        card2_content.pack(fill='x', padx=12, pady=10)
+        
+        btn_scoring = self.create_neon_button(card2_content, '▶ SCORING ◀',
                                              on_scoring,
-                                             self.colors.NEON_YELLOW, (34, 2, 14))
-        btn_scoring.pack(padx=12, pady=10)
+                                             self.colors.NEON_YELLOW, (28, 2, 14))
+        btn_scoring.pack(side='left', fill='both', expand=True)
+        
+        info_btn2 = tk.Button(card2_content, text='ⓘ',
+                            bg=self.colors.NEON_YELLOW, fg=self.colors.BG_PRIMARY,
+                            font=('Arial', 11, 'bold'),
+                            command=lambda: self._show_rules('scoring'),
+                            relief='solid', bd=1, cursor='hand2',
+                            width=3, height=1)
+        info_btn2.pack(side='right', padx=(8, 0))
         
         # Bottom spacer
         bottom_spacer = tk.Frame(self.main_frame, bg=self.colors.BG_PRIMARY)
@@ -201,18 +291,27 @@ class UIRenderer:
         """Render the end game screen."""
         self.clear_frame()
         
-        # Convert reason code to display text
-        reason_text = reason
-        if reason == 'opponent_quit':
-            reason_text = 'đối thủ bỏ cuộc'
-        elif reason == 'all_mines_hit':
-            reason_text = 'tất cả mìn đã kích hoạt'
-        elif reason == 'board_full':
-            reason_text = 'tất cả ô đã chọn'
-        elif reason == 'mine':
-            reason_text = 'chạm mìn'
-        elif reason == 'timeout':
-            reason_text = 'hết thời gian'
+        # Format a concise, clear Vietnamese subtitle based on result and reason
+        def _format_end_reason(result, reason, mode):
+            # Minimal phrasing (option A)
+            if reason == 'opponent_quit':
+                return 'Đối thủ bỏ cuộc' if result == 'win' else 'Bạn đã rời trận'
+            if reason == 'timeout':
+                return 'Đối thủ hết thời gian' if result == 'win' else 'Hết thời gian — Bạn thua'
+            if reason == 'mine':
+                return 'Đối thủ đánh trúng mìn' if result == 'win' else 'Bạn đánh trúng mìn'
+            if reason == 'all_mines_hit':
+                if mode == 'scoring':
+                    return 'Điểm cao hơn — Bạn thắng' if result == 'win' else 'Điểm thấp hơn — Bạn thua'
+                return 'Tất cả mìn đã được kích hoạt'
+            if reason == 'board_full':
+                return 'Tất cả ô đã được chọn'
+            if reason == 'score':
+                return 'Điểm cao hơn — Bạn thắng' if result == 'win' else 'Điểm thấp hơn — Bạn thua'
+            # Fallback: show raw reason
+            return reason
+
+        reason_text = _format_end_reason(result, reason, mode_value)
         
         # Determine colors and symbols based on result
         if result == 'win':
