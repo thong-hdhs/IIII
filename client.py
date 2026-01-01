@@ -22,7 +22,7 @@ class NeonMinesGame:
     def __init__(self, root):
         self.root = root
         self.root.title('MINES ARENA')
-        self.root.geometry('760x640')
+        self.root.geometry('800x700')
         self.root.config(bg=NeonColors.BG_PRIMARY)
         self.root.resizable(False, False)
         
@@ -58,9 +58,7 @@ class NeonMinesGame:
     
     def leave_game(self):
         """Exit game session and return to menu."""
-        # Send leave message to server first
-        if self.current_screen == 'game':
-            self.net.send_leave()
+        # disconnect() will send leave message to server
         self.net.disconnect()
         self.show_menu_screen()
     

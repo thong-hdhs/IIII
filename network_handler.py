@@ -2,6 +2,7 @@
 import socket
 import threading
 import queue
+import time
 from common import send_msg, recv_msg
 
 
@@ -35,13 +36,16 @@ class NetworkHandler:
         if self.sock:
             try:
                 send_msg(self.sock, {'type': 'leave'})
+                # Give server time to receive and process the leave message
+                time.sleep(0.2)
             except Exception:
                 pass
             try:
                 self.sock.close()
             except Exception:
                 pass
-            self.sock = None
+            finally:
+                self.sock = None
     
     def send_select(self, r, c):
         """Send a cell selection to server."""
