@@ -149,12 +149,14 @@ class UIRenderer:
         btn_frame = tk.Frame(center, bg=self.colors.BG_PRIMARY)
         btn_frame.pack(pady=(20, 12), anchor='center', fill='x')
 
-        # Survival card
-        card1 = tk.Frame(btn_frame, bg=self.colors.BG_SECONDARY, bd=2, relief='solid')
-        card1.pack(pady=8, fill='x')
+        # Survival card (neon outer border + dark inner panel)
+        card1_outer = tk.Frame(btn_frame, bg=self.colors.NEON_GREEN)
+        card1_outer.pack(pady=8, fill='x')
+        card1 = tk.Frame(card1_outer, bg=self.colors.BG_SECONDARY, bd=2, relief='solid')
+        card1.pack(padx=4, pady=4, fill='x')
         
         card1_content = tk.Frame(card1, bg=self.colors.BG_SECONDARY)
-        card1_content.pack(fill='x', padx=12, pady=10)
+        card1_content.pack(fill='x', padx=12, pady=12)
         
         btn_survival = self.create_neon_button(card1_content, '▶ SURVIVAL ◀',
                                               on_survival,
@@ -169,12 +171,14 @@ class UIRenderer:
                             width=3, height=1)
         info_btn1.pack(side='right', padx=(8, 0))
 
-        # Scoring card
-        card2 = tk.Frame(btn_frame, bg=self.colors.BG_SECONDARY, bd=2, relief='solid')
-        card2.pack(pady=8, fill='x')
+        # Scoring card (neon outer border + dark inner panel)
+        card2_outer = tk.Frame(btn_frame, bg=self.colors.NEON_YELLOW)
+        card2_outer.pack(pady=8, fill='x')
+        card2 = tk.Frame(card2_outer, bg=self.colors.BG_SECONDARY, bd=2, relief='solid')
+        card2.pack(padx=4, pady=4, fill='x')
         
         card2_content = tk.Frame(card2, bg=self.colors.BG_SECONDARY)
-        card2_content.pack(fill='x', padx=12, pady=10)
+        card2_content.pack(fill='x', padx=12, pady=12)
         
         btn_scoring = self.create_neon_button(card2_content, '▶ SCORING ◀',
                                              on_scoring,
