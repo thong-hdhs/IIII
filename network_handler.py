@@ -32,20 +32,14 @@ class NetworkHandler:
             raise e
     
     def disconnect(self):
-        """Close socket connection."""
+        """Send leave message to server."""
         if self.sock:
             try:
                 send_msg(self.sock, {'type': 'leave'})
-                # Give server time to receive and process the leave message
-                time.sleep(0.2)
+                # Don't close socket - let server close it after sending end message
+                # The reader thread will detect socket closure and add 'disconnect' to queue
             except Exception:
                 pass
-            try:
-                self.sock.close()
-            except Exception:
-                pass
-            finally:
-                self.sock = None
     
     def send_select(self, r, c):
         """Send a cell selection to server."""

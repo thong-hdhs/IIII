@@ -76,6 +76,14 @@ class NeonMinesGame:
         self.mode.set(mode)
         self.is_game_ended = False
         
+        # Close any existing connection first
+        if self.net.sock:
+            try:
+                self.net.disconnect()
+                time.sleep(0.1)  # Give time for disconnect to complete
+            except Exception:
+                pass
+        
         try:
             self.net.connect(mode)
             self.show_game_screen()

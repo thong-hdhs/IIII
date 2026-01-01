@@ -176,13 +176,10 @@ class GameSession(threading.Thread):
         self.running = False
         self._close_all()
 
-    def _end_due_to_disconnect(self, idx, reason='opponent_disconnect'):
+    def _end_due_to_disconnect(self, idx, reason='opponent_quit'):
         other = 1-idx
-        try:
-            send_msg(self.socks[other], {'type':'end','winner':other,'reason':reason})
-        except Exception:
-            pass
-        self._close_all()
+        # Use _send_end to send proper end message with all data to both players
+        self._send_end(winner=other, reason=reason)
 
     def _close_all(self):
         for s in self.socks:
