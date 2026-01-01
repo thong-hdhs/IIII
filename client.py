@@ -31,6 +31,7 @@ class NeonMinesGame:
         self.remaining_time = 10
         self.server_start_time = None
         self.is_game_ended = False
+        self.last_scores = [0, 0]
         
         # UI and Network
         self.main_frame = tk.Frame(self.root, bg=NeonColors.BG_PRIMARY)
@@ -38,21 +39,15 @@ class NeonMinesGame:
         
         self.ui = UIRenderer(self.main_frame, NeonColors())
         self.net = NetworkHandler()
-        
-        # Persistent exit button
-        self.global_exit_btn = tk.Button(self.root, text='✕',
-                                         bg=NeonColors.NEON_PINK, fg=NeonColors.BG_PRIMARY,
-                                         font=('Arial', 9, 'bold'),
-                                         command=self.leave_game,
-                                         relief='solid', bd=1, cursor='hand2',
-                                         width=3, height=1)
-        self.global_exit_btn.place(relx=0.985, rely=0.02, anchor='ne')
 
         self.show_menu_screen()
         self.poll_net()
     
     def leave_game(self):
         """Exit game session and return to menu."""
+        # Send leave message to server first
+        if self.current_screen == 'game':
+            self.net.send_leave()
         self.net.disconnect()
         self.show_menu_screen()
     
@@ -80,7 +75,8 @@ class NeonMinesGame:
     def show_game_screen(self):
         """Display game board."""
         self.current_screen = 'game'
-        self.ui.show_game_screen()
+        mode = self.mode.get()
+        self.ui.show_game_screen(mode=mode, on_leave=self.leave_game)
         self.ui.set_board_callback(self.select_cell)
     
     def select_cell(self, r, c):
@@ -93,7 +89,7 @@ class NeonMinesGame:
         """Display game end screen."""
         self.current_screen = 'end'
         self.ui.show_end_screen(
-            result, reason, self.mode.get(),
+            result, reason, self.mode.get(), self.last_scores,
             on_play_again=lambda: self.start_game(self.mode.get()),
             on_back_menu=self.show_menu_screen
         )
@@ -111,6 +107,9 @@ class NeonMinesGame:
         if msg_type == 'start':
             self.player_id = msg.get('you')
             self.is_game_ended = False
+            scores = msg.get('scores', [0, 0])
+            self.last_scores = scores
+            self.ui.update_scores(scores)
         
         elif msg_type == 'turn':
             player = msg.get('player')
@@ -128,21 +127,41 @@ class NeonMinesGame:
         elif msg_type == 'update':
             for (r, c, p) in msg.get('selected', []):
                 self.ui.mark_cell(r, c, p)
+            scores = msg.get('scores', [0, 0])
+            self.last_scores = scores
+            self.ui.update_scores(scores)
+        
+        elif msg_type == 'mine_hit':
+            # Show explosion immediately when mine is hit (before end message)
+            r = msg.get('r')
+            c = msg.get('c')
+            self.ui.reveal_explosion(r, c, self.root)
         
         elif msg_type == 'end':
             self.is_game_ended = True
             winner = msg.get('winner')
             reason = msg.get('reason')
+            scores = msg.get('scores', [0, 0])
+            self.last_scores = scores
             
-            # Reveal mines
+            # Reveal mines with explosion animation
             mines = msg.get('mines', [])
             for (r, c) in mines:
                 self.ui.reveal_explosion(r, c, self.root)
             
             self.ui.disable_board()
             
-            result = 'win' if (winner == self.player_id) else 'lose'
-            self.root.after(500, lambda: self.show_end_screen(result, reason))
+            # Determine result based on winner
+            if self.mode.get() == 'scoring':
+                # In scoring mode, -1 means tie
+                if winner == -1:
+                    result = 'tie'
+                else:
+                    result = 'win' if (winner == self.player_id) else 'lose'
+            else:
+                result = 'win' if (winner == self.player_id) else 'lose'
+            # Wait 1000ms to ensure explosion animation completes before showing end screen
+            self.root.after(1000, lambda: self.show_end_screen(result, reason))
         
         elif msg_type == 'disconnect':
             if self.current_screen == 'game' and not self.is_game_ended:

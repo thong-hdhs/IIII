@@ -99,24 +99,14 @@ class UIRenderer:
                                              self.colors.NEON_YELLOW, (34, 2, 14))
         btn_scoring.pack(padx=12, pady=10)
         
-        # Bottom spacer and exit
+        # Bottom spacer
         bottom_spacer = tk.Frame(self.main_frame, bg=self.colors.BG_PRIMARY)
         bottom_spacer.pack(fill='both', expand=True)
-
-        bot_frame = tk.Frame(self.main_frame, bg=self.colors.BG_PRIMARY)
-        bot_frame.pack(side='bottom', fill='x', padx=40, pady=8)
-        
-        exit_btn = tk.Button(bot_frame, text='✕ EXIT',
-                           bg=self.colors.NEON_PINK, fg=self.colors.BG_PRIMARY,
-                           font=('Arial', 9, 'bold'),
-                           command=on_exit,
-                           relief='solid', bd=2, cursor='hand2',
-                           width=12, height=1)
-        exit_btn.pack()
     
-    def show_game_screen(self):
+    def show_game_screen(self, mode='survival', on_leave=None):
         """Render the game board screen."""
         self.clear_frame()
+        self.game_mode = mode
         
         # Top bar
         top = tk.Frame(self.main_frame, bg=self.colors.NEON_PURPLE, height=70)
@@ -130,10 +120,33 @@ class UIRenderer:
                 bg=self.colors.BG_SECONDARY, fg=self.colors.NEON_CYAN,
                 font=('Arial', 14, 'bold')).pack(side='left', padx=15, pady=10)
         
-        self.timer_label = tk.Label(inner_top, text='⏱ 10s',
+        # Scores display in center (only for scoring mode)
+        if mode == 'scoring':
+            self.scores_label = tk.Label(inner_top, text='P1: 0  |  P2: 0',
+                                         bg=self.colors.BG_SECONDARY, fg=self.colors.NEON_GREEN,
+                                         font=('Arial', 12, 'bold'))
+            self.scores_label.pack(side='left', expand=True, padx=10, pady=10)
+        else:
+            self.scores_label = None
+        
+        # Right side: timer and leave button frame
+        right_frame = tk.Frame(inner_top, bg=self.colors.BG_SECONDARY)
+        right_frame.pack(side='right', padx=10, pady=10)
+        
+        self.timer_label = tk.Label(right_frame, text='⏱ 10s',
                                     bg=self.colors.BG_SECONDARY, fg=self.colors.NEON_PINK,
                                     font=('Arial', 14, 'bold'))
-        self.timer_label.pack(side='right', padx=15, pady=10)
+        self.timer_label.pack(side='left', padx=(0, 8))
+        
+        # Leave button
+        if on_leave:
+            leave_btn = tk.Button(right_frame, text='🚪',
+                                bg=self.colors.NEON_PINK, fg=self.colors.BG_PRIMARY,
+                                font=('Arial', 11, 'bold'),
+                                command=on_leave,
+                                relief='solid', bd=1, cursor='hand2',
+                                width=2, height=1)
+            leave_btn.pack(side='left')
         
         # Board container
         board_container = tk.Frame(self.main_frame, bg=self.colors.BG_PRIMARY)
@@ -172,6 +185,11 @@ class UIRenderer:
                 b = self.btns[r][c]
                 b.config(text='□', state='disabled', bg='#2a2a3e', fg=self.colors.GRAY_TEXT)
     
+    def update_scores(self, scores):
+        """Update scores display in top bar (only for scoring mode)."""
+        if self.scores_label:
+            self.scores_label.config(text=f'P1: {scores[0]}  |  P2: {scores[1]}')
+    
     def set_board_callback(self, callback):
         """Set callback for board cell clicks."""
         if self.btns:
@@ -179,13 +197,36 @@ class UIRenderer:
                 for c in range(8):
                     self.btns[r][c].config(command=lambda rr=r, cc=c: callback(rr, cc))
     
-    def show_end_screen(self, result, reason, mode_value, on_play_again, on_back_menu):
+    def show_end_screen(self, result, reason, mode_value, scores, on_play_again, on_back_menu):
         """Render the end game screen."""
         self.clear_frame()
         
-        result_color = self.colors.NEON_GREEN if result == 'win' else self.colors.NEON_PINK
-        result_emoji = '◆ VICTORY ◆' if result == 'win' else '✕ DEFEAT ✕'
-        result_symbol = '⬤' if result == 'win' else '⊗'
+        # Convert reason code to display text
+        reason_text = reason
+        if reason == 'opponent_quit':
+            reason_text = 'đối thủ bỏ cuộc'
+        elif reason == 'all_mines_hit':
+            reason_text = 'tất cả mìn đã kích hoạt'
+        elif reason == 'board_full':
+            reason_text = 'tất cả ô đã chọn'
+        elif reason == 'mine':
+            reason_text = 'chạm mìn'
+        elif reason == 'timeout':
+            reason_text = 'hết thời gian'
+        
+        # Determine colors and symbols based on result
+        if result == 'win':
+            result_color = self.colors.NEON_GREEN
+            result_emoji = '◆ VICTORY ◆'
+            result_symbol = '⬤'
+        elif result == 'tie':
+            result_color = self.colors.NEON_YELLOW
+            result_emoji = '⚔ TIE ⚔'
+            result_symbol = '◇'
+        else:
+            result_color = self.colors.NEON_PINK
+            result_emoji = '✕ DEFEAT ✕'
+            result_symbol = '⊗'
         
         # Vertical centering
         top_spacer = tk.Frame(self.main_frame, bg=self.colors.BG_PRIMARY)
@@ -204,9 +245,16 @@ class UIRenderer:
         tk.Label(card, text=result_emoji,
                 bg=self.colors.BG_SECONDARY, fg=result_color, 
                 font=('Arial', 22, 'bold')).pack(pady=(0, 6))
-        tk.Label(card, text=reason,
+        tk.Label(card, text=reason_text,
                 bg=self.colors.BG_SECONDARY, fg=self.colors.GRAY_TEXT, 
                 font=('Arial', 11)).pack(pady=(0, 12))
+        
+        # Scores display (only for scoring mode)
+        if mode_value == 'scoring' and scores:
+            scores_text = f'P1: {scores[0]}  |  P2: {scores[1]}'
+            tk.Label(card, text=scores_text,
+                    bg=self.colors.BG_SECONDARY, fg=self.colors.NEON_YELLOW, 
+                    font=('Arial', 14, 'bold')).pack(pady=(6, 0))
 
         # Mode description
         mode_desc = 'Survival: One mine ends the match.' if mode_value == 'survival' else 'Scoring: Mines subtract points from your score.'
@@ -227,20 +275,9 @@ class UIRenderer:
                                           self.colors.NEON_CYAN, (18, 2, 12))
         btn_menu.grid(row=0, column=1, padx=8)
         
-        # Bottom exit
+        # Bottom spacer
         bottom_spacer = tk.Frame(self.main_frame, bg=self.colors.BG_PRIMARY)
         bottom_spacer.pack(fill='both', expand=True)
-
-        bot_frame = tk.Frame(self.main_frame, bg=self.colors.BG_PRIMARY)
-        bot_frame.pack(side='bottom', fill='x', padx=50, pady=8)
-        
-        exit_btn = tk.Button(bot_frame, text='✕ EXIT',
-                           bg=self.colors.NEON_PINK, fg=self.colors.BG_PRIMARY,
-                           font=('Arial', 9, 'bold'),
-                           command=lambda: None,  # Will be set by caller
-                           relief='solid', bd=2, cursor='hand2',
-                           width=12, height=1)
-        exit_btn.pack()
     
     def mark_cell(self, r, c, player):
         """Mark a cell as selected by a player."""

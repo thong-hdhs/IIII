@@ -53,6 +53,16 @@ class NetworkHandler:
         except Exception:
             return False
     
+    def send_leave(self):
+        """Send leave message to server."""
+        if not self.sock:
+            return False
+        try:
+            send_msg(self.sock, {'type': 'leave'})
+            return True
+        except Exception:
+            return False
+    
     def poll_messages(self):
         """Get all pending messages from queue (non-blocking)."""
         messages = []

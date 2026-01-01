@@ -34,13 +34,15 @@ class GameSession(threading.Thread):
         self.mode = mode
         self.board = [[0]*8 for _ in range(8)]
         self.mines = set()
-        for _ in range(random.choice([2,3])):
+        mine_count = random.choice([2, 3, 4])  # Random 2-4 mines
+        for _ in range(mine_count):
             while True:
                 r = random.randrange(8)
                 c = random.randrange(8)
                 if (r,c) not in self.mines:
                     self.mines.add((r,c))
                     break
+        self.mines_hit = set()  # Track which mines have been hit
         self.selected = {}  # (r,c) -> player
         self.scores = [0,0]
         self.turn = 0
@@ -74,7 +76,7 @@ class GameSession(threading.Thread):
                 req = None
 
             if req is None:
-                # timeout
+                # timeout or disconnect
                 if self.mode == 'survival':
                     # opponent wins
                     self._send_end(winner=other, reason='timeout')
@@ -83,8 +85,18 @@ class GameSession(threading.Thread):
                     # scoring: skip turn
                     self.turn = other
                     for s in self.socks:
-                        send_msg(s, {'type':'info','msg':'player %d timeout, turn passed' % cur})
+                        try:
+                            send_msg(s, {'type':'info','msg':'player %d timeout, turn passed' % cur})
+                        except Exception:
+                            # Opponent disconnected
+                            self._end_due_to_disconnect(cur, reason='opponent_quit')
+                            return
                     continue
+
+            if req.get('type') == 'leave':
+                # Player left the game - opponent wins
+                self._end_due_to_disconnect(cur, reason='opponent_quit')
+                return
 
             if req.get('type') == 'select':
                 r = int(req.get('r'))
@@ -94,16 +106,42 @@ class GameSession(threading.Thread):
                     continue
                 self.selected[(r,c)] = cur
                 if (r,c) in self.mines:
+                    # Mine hit - show explosion immediately to all players
+                    # Send mine_hit message so clients show explosion right away
+                    for i, s in enumerate(self.socks):
+                        try:
+                            send_msg(s, {'type': 'mine_hit', 'r': r, 'c': c})
+                        except Exception:
+                            pass
+                    
+                    self.mines_hit.add((r,c))
+                    if self.mode == 'scoring':
+                        self.scores[cur] -= 1
+                    
+                    # Survival mode: end game immediately on first mine hit
                     if self.mode == 'survival':
-                        # immediate loss
-                        self._send_end(winner=other, loser=cur, reason='mine')
+                        winner = other
+                        reason = 'mine'
+                        self._send_end(winner=winner, reason=reason)
                         return
                     else:
-                        # scoring: subtract point
-                        self.scores[cur] -= 1
+                        # Scoring mode: continue until all mines are hit
+                        if len(self.mines_hit) == len(self.mines):
+                            # All mines hit - determine winner by score
+                            if self.scores[0] > self.scores[1]:
+                                winner = 0
+                            elif self.scores[1] > self.scores[0]:
+                                winner = 1
+                            else:
+                                winner = -1  # Tie
+                            reason = 'all_mines_hit'
+                            self._send_end(winner=winner, reason=reason)
+                            return
+                        # Continue turn in scoring mode if not all mines hit yet
                 else:
                     # safe: add point
-                    self.scores[cur] += 1
+                    if self.mode == 'scoring':
+                        self.scores[cur] += 1
 
                 # continue or switch
                 self.turn = other
@@ -113,7 +151,12 @@ class GameSession(threading.Thread):
 
                 # If all cells chosen or other end condition, end
                 if len(self.selected) >= 64:
-                    winner = 0 if self.scores[0] > self.scores[1] else 1
+                    if self.scores[0] > self.scores[1]:
+                        winner = 0
+                    elif self.scores[1] > self.scores[0]:
+                        winner = 1
+                    else:
+                        winner = -1  # Tie
                     self._send_end(winner=winner, reason='board_full')
                     return
 
@@ -124,16 +167,19 @@ class GameSession(threading.Thread):
     def _send_end(self, winner=None, loser=None, reason=''):
         for i,s in enumerate(self.socks):
             try:
-                send_msg(s, {'type':'end','winner':winner,'loser':loser,'reason':reason,'scores':self.scores,'selected':[(k[0],k[1],v) for k,v in self.selected.items()], 'mines': [[r,c] for (r,c) in self.mines]})
+                # In survival mode, don't send scores; in scoring mode, send them
+                scores = self.scores if self.mode == 'scoring' else [0, 0]
+                # Send only hit mines (mines_hit) to show as red, not all mines
+                send_msg(s, {'type':'end','winner':winner,'loser':loser,'reason':reason,'scores':scores,'selected':[(k[0],k[1],v) for k,v in self.selected.items()], 'mines': [[r,c] for (r,c) in self.mines_hit]})
             except Exception:
                 pass
         self.running = False
         self._close_all()
 
-    def _end_due_to_disconnect(self, idx):
+    def _end_due_to_disconnect(self, idx, reason='opponent_disconnect'):
         other = 1-idx
         try:
-            send_msg(self.socks[other], {'type':'end','winner':other,'reason':'opponent_disconnect'})
+            send_msg(self.socks[other], {'type':'end','winner':other,'reason':reason})
         except Exception:
             pass
         self._close_all()
