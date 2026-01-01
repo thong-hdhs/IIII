@@ -3,6 +3,7 @@
 Run: python server.py
 """
 import socket
+import select
 import threading
 import random
 import time
@@ -59,7 +60,9 @@ class GameSession(threading.Thread):
         while self.running:
             cur = self.turn
             other = 1-cur
-            sock = self.socks[cur]
+            cur_sock = self.socks[cur]
+            other_sock = self.socks[other]
+            
             # inform whose turn
             for i,s in enumerate(self.socks):
                 try:
@@ -68,12 +71,28 @@ class GameSession(threading.Thread):
                 except Exception:
                     self._end_due_to_disconnect(i); return
 
-            # wait for move up to 10s
+            # Use select to listen to BOTH sockets for 10 seconds
+            # This allows us to receive 'leave' messages from either player
             req = None
-            try:
-                req = recv_msg(sock, timeout=10.0)
-            except Exception:
-                req = None
+            start_time = time.time()
+            while time.time() - start_time < 10.0 and req is None:
+                timeout = 10.0 - (time.time() - start_time)
+                readable, _, _ = select.select([cur_sock, other_sock], [], [], max(0, timeout))
+                
+                if readable:
+                    # Check which socket has data
+                    if cur_sock in readable:
+                        req = recv_msg(cur_sock, timeout=0.1)
+                        if req and req.get('type') == 'leave':
+                            # Current player sent leave
+                            self._end_due_to_disconnect(cur, reason='opponent_quit')
+                            return
+                    if other_sock in readable and req is None:
+                        msg = recv_msg(other_sock, timeout=0.1)
+                        if msg and msg.get('type') == 'leave':
+                            # Other player left while waiting
+                            self._end_due_to_disconnect(other, reason='opponent_quit')
+                            return
 
             if req is None:
                 # timeout or disconnect
@@ -173,6 +192,8 @@ class GameSession(threading.Thread):
                 send_msg(s, {'type':'end','winner':winner,'loser':loser,'reason':reason,'scores':scores,'selected':[(k[0],k[1],v) for k,v in self.selected.items()], 'mines': [[r,c] for (r,c) in self.mines_hit]})
             except Exception:
                 pass
+        # Wait a bit for clients to read the end message before closing sockets
+        time.sleep(0.3)
         self.running = False
         self._close_all()
 
