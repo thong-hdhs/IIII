@@ -1,1 +1,1 @@
-tkinter
+# No external requirements; using winsound on Windows and stdlib

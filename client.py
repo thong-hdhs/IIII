@@ -10,8 +10,10 @@ Run: python client.py
 import tkinter as tk
 from tkinter import messagebox
 import time
+import os
 from ui_renderer import UIRenderer, NeonColors
 from network_handler import NetworkHandler
+from sound import SoundManager
 
 
 class NeonMinesGame:
@@ -39,6 +41,17 @@ class NeonMinesGame:
         
         self.ui = UIRenderer(self.main_frame, NeonColors())
         self.net = NetworkHandler()
+        # Sound manager (preload expected asset names)
+        try:
+            self.sound = SoundManager(volume=0.6)
+            def _asset(*parts):
+                return os.path.join(*parts)
+            self.sound.preload_effect('click', _asset('assets', 'sfx', 'click.wav'))
+            self.sound.preload_effect('explosion', _asset('assets', 'sfx', 'explosion.wav'))
+            self.sound.preload_effect('win', _asset('assets', 'sfx', 'win.wav'))
+            self.sound.preload_effect('lose', _asset('assets', 'sfx', 'lose.wav'))
+        except Exception:
+            self.sound = None
 
         self.show_menu_screen()
         self.poll_net()
@@ -81,6 +94,13 @@ class NeonMinesGame:
     
     def select_cell(self, r, c):
         """Handle cell click."""
+        # play click sound
+        try:
+            if self.sound:
+                self.sound.play_effect('click')
+        except Exception:
+            pass
+
         if self.net.send_select(r, c):
             return
         messagebox.showerror('Error', 'Failed to send move.')
@@ -88,6 +108,16 @@ class NeonMinesGame:
     def show_end_screen(self, result, reason):
         """Display game end screen."""
         self.current_screen = 'end'
+        # play result sound
+        try:
+            if self.sound:
+                if result == 'win':
+                    self.sound.play_effect('win')
+                elif result == 'lose':
+                    self.sound.play_effect('lose')
+        except Exception:
+            pass
+
         self.ui.show_end_screen(
             result, reason, self.mode.get(), self.last_scores,
             on_play_again=lambda: self.start_game(self.mode.get()),
@@ -136,6 +166,11 @@ class NeonMinesGame:
             r = msg.get('r')
             c = msg.get('c')
             self.ui.reveal_explosion(r, c, self.root)
+            try:
+                if self.sound:
+                    self.sound.play_effect('explosion')
+            except Exception:
+                pass
         
         elif msg_type == 'end':
             self.is_game_ended = True
@@ -148,6 +183,11 @@ class NeonMinesGame:
             mines = msg.get('mines', [])
             for (r, c) in mines:
                 self.ui.reveal_explosion(r, c, self.root)
+            try:
+                if self.sound:
+                    self.sound.play_effect('explosion')
+            except Exception:
+                pass
             
             self.ui.disable_board()
             
