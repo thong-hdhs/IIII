@@ -7,6 +7,7 @@ import threading
 import random
 import time
 from common import send_msg, recv_msg
+import datetime
 
 HOST = '0.0.0.0'
 PORT = 5000
@@ -60,7 +61,8 @@ class GameSession(threading.Thread):
             # inform whose turn
             for i,s in enumerate(self.socks):
                 try:
-                    send_msg(s, {'type':'turn','player':cur,'time':10,'board':self._board_view(i)})
+                    server_time = time.time()
+                    send_msg(s, {'type':'turn','player':cur,'time':10,'server_time':server_time,'board':self._board_view(i)})
                 except Exception:
                     self._end_due_to_disconnect(i); return
 
